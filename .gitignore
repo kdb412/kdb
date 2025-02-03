@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+
+# artifact folder
+/cmake-build-debug/
