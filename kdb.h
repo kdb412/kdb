@@ -66,10 +66,10 @@ namespace kdb {
     }
 
   public:
-    db(const db &) = delete;
-    db &operator=(const db &) = delete;
     db(db &&) = delete;
+    db(const db &) = delete;
     db &operator=(db &&) = delete;
+    db &operator=(const db &) = delete;
 
     db(string path = "file.db") : db_path(path), active(false), odbf(), idbf() {
       active = init();
@@ -77,16 +77,15 @@ namespace kdb {
 
     bool is_open() { return active; }
 
-    bool read( void **data, unsigned long long offset = sizeof(_db_header)) {
+    bool read( void **data, unsigned long long &offset ) {
 
       return false;
     }
 
-    bool write( void **data, unsigned long long offset = sizeof(_db_header)) {
+    bool write( void **data, unsigned long long &offset ) {
 
       return false;
     }
 
-    // todo: read() / write() / delete() / find()
   };
 }
