@@ -112,7 +112,6 @@ namespace kdb {
 
   class kdbms {
   private:
-    const string kdb_path;
     db db_inst;
 
     public:
@@ -122,6 +121,6 @@ namespace kdb {
       kdbms &operator=(kdbms &&) = delete;
       kdbms &operator=(const kdbms &) = delete;
 
-      kdbms(string path) : kdb_path(path), db_inst(kdb_path) {}
+      kdbms(string path) : db_inst(path) {}
   };
 }
