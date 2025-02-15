@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <bit>
 #include <string>
 #include <fstream>
 
@@ -11,8 +12,12 @@ namespace kdb {
   using std::string;
   using std::ofstream;
   using std::ifstream;
+  using std::bit_cast;
 
   class db {
+
+  friend class kdbms;
+  
   private:
     ofstream ofs;
     static constexpr int MAX_BLOCK_ALLOC = 0x64;
@@ -65,27 +70,58 @@ namespace kdb {
       return false;
     }
 
+    bool write( void *data, unsigned long long &offset ) {
+
+      try {
+        odbf.seekp( offset );
+        auto block = bit_cast<_db_block *>( data );
+        odbf.write( block->blkid, BLOCK_SIZE );
+        return true;
+      }
+      catch ( ... ) {
+        return false;
+      }
+    }
+
+    bool read( void *data, unsigned long long &offset ) {
+      try {
+        idbf.seekg( offset );
+        auto block = bit_cast<_db_block *>( data );
+        idbf.read( block->blkid, BLOCK_SIZE );
+        return true;
+      }
+      catch ( ... ) {
+        return false;
+      }
+    }
+
   public:
     db(db &&) = delete;
     db(const db &) = delete;
     db &operator=(db &&) = delete;
     db &operator=(const db &) = delete;
+    db() = delete;
 
     db(string path = "file.db") : db_path(path), active(false), odbf(), idbf() {
       active = init();
     }
 
-    bool is_open() { return active; }
+    bool is_open() const { return active; }
 
-    bool read( void **data, unsigned long long &offset ) {
+  };
 
-      return false;
-    }
+  class kdbms {
+  private:
+    const string kdb_path;
+    db db_inst;
 
-    bool write( void **data, unsigned long long &offset ) {
+    public:
+      kdbms() = delete;
+      kdbms(kdbms &&) = delete;
+      kdbms(const kdbms &) = delete;
+      kdbms &operator=(kdbms &&) = delete;
+      kdbms &operator=(const kdbms &) = delete;
 
-      return false;
-    }
-
+      kdbms(string path) : kdb_path(path), db_inst(kdb_path) {}
   };
 }
