@@ -10,6 +10,7 @@
 #include <fstream>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 
 #pragma pack(1)
 
