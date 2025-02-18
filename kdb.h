@@ -108,10 +108,10 @@ namespace kdb {
     }
 
   public:
-    db() = delete;
-    db(db &&) = delete;
-    db(const db &) = delete;
-    db &operator=(db &&) = delete;
+    db()                      = delete;
+    db(db &&)                 = delete;
+    db(const db &)            = delete;
+    db &operator=(db &&)      = delete;
     db &operator=(const db &) = delete;
 
     db(string path = "file.db") : db_path(path), active(false), odbf(), idbf() {
@@ -131,10 +131,10 @@ namespace kdb {
     char      kek[512];
 
   public:
-      kdbms() = delete;
-      kdbms(kdbms &&) = delete;
-      kdbms(const kdbms &) = delete;
-      kdbms &operator=(kdbms &&) = delete;
+      kdbms()                         = delete;
+      kdbms(kdbms &&)                 = delete;
+      kdbms(const kdbms &)            = delete;
+      kdbms &operator=(kdbms &&)      = delete;
       kdbms &operator=(const kdbms &) = delete;
 
       kdbms(string path) :
@@ -166,11 +166,9 @@ namespace kdb {
                   strcpy(_h->oname, db_inst.db_path.c_str());
 
                 // todo: generate kek / with security provider
+                memcpy(_h->kek, kek, sizeof(db::kdb_h.kek));
 
                 online = db_inst.write(buff, offset);
-
-                // load header meta
-
               }
               else if ( bytes_r == db::BLOCK_SIZE ) {
                 // load header meta
