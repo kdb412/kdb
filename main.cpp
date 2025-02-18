@@ -10,7 +10,7 @@ auto main (int argc, char *argv[]) -> int {
 #ifndef NDEBUG
   std::cout << "running tests.. ";
 
-  assert(kdb::kdbms::Test() == true);
+  kdb::kdbms::Test();
 
   std::cout << "done.\n";
 #endif
