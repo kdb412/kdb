@@ -8,6 +8,7 @@
 #include <string>
 #include <fstream>
 #include <cassert>
+#include <cstdint>
 
 #pragma pack(1)
 
