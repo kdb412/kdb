@@ -158,7 +158,7 @@ namespace kdb {
                 // do init
                 _h->dbid[0]    = db::DBID;
                 _h->version[0] = db::DBVE >> 8;
-                _h->version[1] = db::DBVE ^ 0x00ff;
+                _h->version[1] = db::DBVE ^ 0x007f;
                 _h->idate = std::chrono::duration_cast<std::chrono::seconds>(system_clock::now().time_since_epoch()).count();
 
                 if (db_inst.db_path.length() > sizeof(db::kdb_h.oname))
@@ -167,14 +167,20 @@ namespace kdb {
                   strcpy(_h->oname, db_inst.db_path.c_str());
 
                 // todo: generate kek / with security provider
-                memcpy(_h->kek, kek, sizeof(db::kdb_h.kek));
 
+                memcpy(_h->kek, kek, sizeof(db::kdb_h.kek));
                 online = db_inst.write(buff, offset);
               }
               else if ( bytes_r == db::BLOCK_SIZE ) {
                 // load header meta
+                if ( _h->dbid[0] != db::DBID )
+                  return false;
+                if ( _h->version[0] != (db::DBVE >> 8 ) )
+                  return false;
+                if ( _h->version[1] != (db::DBVE ^ 0x007f) )
+                  return false;
 
-                // todo: validate header
+                // todo: kek validation with security provider
 
                 online = true;
               }
