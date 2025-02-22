@@ -23,9 +23,45 @@ namespace kdb {
   using std::to_string;
   using std::chrono::system_clock;
 
+  // crypto provider
+  class Crypto {
+    public:
+    virtual ~Crypto() {}
+    virtual void Enc(void *data, size_t sz) {}
+    virtual void Dec(void *data, const size_t sz) {}
+  };
+
+  class Net {
+    public:
+    virtual ~Net() {}
+    virtual bool Connect(){ return false; }
+    virtual void Send(void *data, size_t &sz){}
+    virtual void Recv(void *data, size_t &sz){}
+  };
+
+  struct kdb_tx {
+    size_t tx_id;
+    size_t tx_sz;
+    char spec[128];
+    void *data;
+  };
+
+  class Storage {
+    public:
+    enum class STMODE {
+      READ = 0,
+      WRITE = 1,
+    };
+
+    virtual ~Storage() {}
+    virtual void GenerateTx(void *data, size_t &sz, kdb_tx &tx, STMODE s_mode = STMODE::READ){}
+    virtual void ExecuteTx(kdb_tx &tx){}
+  };
+
   class db {
 
-  friend class kdbms;
+    friend class kdbms;
+    friend class storage;
   
   private:
     static constexpr int MAX_BLOCK_ALLOC = 0x64;
@@ -83,7 +119,6 @@ namespace kdb {
     }
 
     bool write( void *data, unsigned long long &offset ) {
-
       try {
         odbf.seekp( offset );
         auto block = bit_cast<char *>( data );
