@@ -12,6 +12,11 @@
 #include <cstdint>
 #include <cstring>
 
+// net
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
 #pragma pack(1)
 
 namespace kdb {
@@ -27,16 +32,57 @@ namespace kdb {
   class Crypto {
     public:
     virtual ~Crypto() {}
-    virtual void Enc(void *data, size_t sz) {}
-    virtual void Dec(void *data, const size_t sz) {}
+    virtual void Enc(void *data, size_t &sz) {}
+    virtual void Dec(void *data, size_t &sz) {}
   };
 
   class Net {
+    protected:
+    enum class Mode {
+      CONNECT = 0,
+      LISTEN,
+    };
+    const int sockfd;
+    const int port;
+    const Mode mode;
+    struct sockaddr_in sockaddr;
+
     public:
-    virtual ~Net() {}
-    virtual bool Connect(){ return false; }
-    virtual void Send(void *data, size_t &sz){}
-    virtual void Recv(void *data, size_t &sz){}
+    Net(string h, int port, Mode mode = Mode::LISTEN) :
+      sockfd(socket(AF_INET, SOCK_STREAM, 0)), port(port), mode(mode), sockaddr{0} {
+      switch (mode) {
+        case Mode::LISTEN:
+          if (sockfd > 0) {
+            sockaddr.sin_family = AF_INET;
+            sockaddr.sin_port = htons(port);
+            sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
+            socklen_t len = sizeof(sockaddr);
+            bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len);
+            listen(sockfd, 100);
+          }
+          break;
+        case Mode::CONNECT:
+          if (sockfd > 0) {
+            sockaddr.sin_family = AF_INET;
+            sockaddr.sin_port = htons(port);
+            sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
+            socklen_t len = sizeof(sockaddr);
+            connect(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len);
+          }
+          break;
+      }
+    }
+    virtual ~Net() {
+      close(sockfd);
+    }
+    virtual void Send(void *data, size_t &sz) {
+      auto w_sz = write(sockfd, data, sz);
+      sz = w_sz;
+    }
+    virtual void Recv(void *data, size_t &sz) {
+      auto r_sz = read(sockfd, data, sz);
+      sz = r_sz;
+    }
   };
 
   struct kdb_tx {
