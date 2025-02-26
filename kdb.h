@@ -11,6 +11,8 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <thread>
+#include <atomic>
 
 // net
 #include <unistd.h>
@@ -21,7 +23,9 @@
 
 namespace kdb {
   using std::cout;
+  using std::atomic;
   using std::string;
+  using std::thread;
   using std::ofstream;
   using std::ifstream;
   using std::bit_cast;
@@ -46,10 +50,12 @@ namespace kdb {
     const int port;
     const Mode mode;
     struct sockaddr_in sockaddr;
+    bool active;
 
-    public:
+  public:
+    Net(size_t sockfd, Mode mode = Mode::CONNECT) : sockfd(sockfd), port(0), mode(mode), sockaddr({0}), active(true) {}
     Net(string h, int port, Mode mode = Mode::LISTEN) :
-      sockfd(socket(AF_INET, SOCK_STREAM, 0)), port(port), mode(mode), sockaddr{0} {
+      sockfd(socket(AF_INET, SOCK_STREAM, 0)), port(port), mode(mode), sockaddr({0}), active(false) {
       switch (mode) {
         case Mode::LISTEN:
           if (sockfd > 0) {
@@ -57,8 +63,10 @@ namespace kdb {
             sockaddr.sin_port = htons(port);
             sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
             socklen_t len = sizeof(sockaddr);
-            bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len);
-            listen(sockfd, 100);
+            if ( 0 == bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) )
+              if ( 0 == listen(sockfd, 100) ) {
+                active = true;
+              }
           }
           break;
         case Mode::CONNECT:
@@ -67,23 +75,79 @@ namespace kdb {
             sockaddr.sin_port = htons(port);
             sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
             socklen_t len = sizeof(sockaddr);
-            connect(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len);
+            if ( 0 == connect(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) )
+              active = true;
           }
           break;
       }
     }
+
     virtual ~Net() {
       close(sockfd);
+      active = false;
     }
+
     virtual void Send(void *data, size_t &sz) {
       auto w_sz = write(sockfd, data, sz);
       sz = w_sz;
     }
-    virtual void Recv(void *data, size_t &sz) {
-      auto r_sz = read(sockfd, data, sz);
-      sz = r_sz;
+
+    virtual void Recv(void *data, size_t &sz, size_t *c = nullptr) {
+      if ( mode == Mode::LISTEN)
+      {
+        if ( nullptr != c ) {
+          (*c) = accept(sockfd, nullptr, nullptr);
+          if (*c < 0)
+            return;
+          auto r_sz = read(*c, data, sz);
+          sz = r_sz;
+        }
+      }
+      else {
+        auto r_sz = read(sockfd, data, sz);
+        sz = r_sz;
+      }
     }
+
+#ifndef NDEBUG
+    static void Test() {
+      atomic<bool> server_run = true;
+      thread t([&server_run] {
+
+        char data[30] = "hello world!";
+        size_t data_sz = strlen(data);
+
+        Net host("0.0.0.0", 9100, Mode::LISTEN);
+
+        while (server_run) {
+          size_t client_sock = 0;
+          host.Recv(data, data_sz, &client_sock);
+          if (client_sock < 0)
+            continue;
+
+          Net clnt(client_sock);
+          while (server_run) {
+            clnt.Send(data, data_sz);
+          }
+        }
+      });
+      t.detach();
+
+      Net client("127.0.0.1", 9100, Mode::CONNECT);
+      assert(client.active == true);
+
+      char rdata[30] = {0};
+      size_t r_sz = sizeof(rdata);
+      client.Recv(rdata, r_sz);
+      assert(r_sz == sizeof(rdata));
+      assert(strncmp(rdata, "hello world!", r_sz) == 0);
+      server_run = false;
+      t.join();
+    }
+#endif
+
   };
+
 
   struct kdb_tx {
     size_t tx_id;
