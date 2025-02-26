@@ -16,8 +16,12 @@
 
 // net
 #include <unistd.h>
+#ifndef WIN32
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#else
+#include <winsock2.h>
+#endif
 
 #pragma pack(1)
 
@@ -62,7 +66,7 @@ namespace kdb {
             sockaddr.sin_family = AF_INET;
             sockaddr.sin_port = htons(port);
             sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
-            socklen_t len = sizeof(sockaddr);
+            int len = sizeof(sockaddr);
             if ( 0 == bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) )
               if ( 0 == listen(sockfd, 100) ) {
                 active = true;
@@ -74,7 +78,7 @@ namespace kdb {
             sockaddr.sin_family = AF_INET;
             sockaddr.sin_port = htons(port);
             sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
-            socklen_t len = sizeof(sockaddr);
+            int len = sizeof(sockaddr);
             if ( 0 == connect(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) )
               active = true;
           }
