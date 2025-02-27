@@ -13,6 +13,7 @@
 #include <cstring>
 #include <thread>
 #include <atomic>
+#include <fcntl.h>
 
 // net
 #include <unistd.h>
@@ -96,13 +97,14 @@ namespace kdb {
       sz = w_sz;
     }
 
-    virtual void Recv(void *data, size_t &sz, size_t *c = nullptr) {
+    virtual void Recv(void *data, size_t &sz, size_t *c) {
       if ( mode == Mode::LISTEN)
       {
-        if ( nullptr != c ) {
+        if ( nullptr != c && (*c) == 0 ) {
           (*c) = accept(sockfd, nullptr, nullptr);
-          if (*c < 0)
-            return;
+          fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) | O_NONBLOCK);
+        }
+        else if ( nullptr != c && (*c) > 0 ){
           auto r_sz = read(*c, data, sz);
           sz = r_sz;
         }
@@ -115,38 +117,37 @@ namespace kdb {
 
 #ifndef NDEBUG
     static void Test() {
-      atomic<bool> server_run = true;
-      thread t([&server_run] {
+      using namespace std::chrono_literals;
+
+      thread t([] {
 
         char data[30] = "hello world!";
         size_t data_sz = strlen(data);
 
         Net host("0.0.0.0", 9100, Mode::LISTEN);
 
-        while (server_run) {
+        while (true) {
+          std::this_thread::sleep_for(2s);
           size_t client_sock = 0;
           host.Recv(data, data_sz, &client_sock);
-          if (client_sock < 0)
+          if (client_sock <= 0)
             continue;
-
           Net clnt(client_sock);
-          while (server_run) {
-            clnt.Send(data, data_sz);
-          }
+          clnt.Send(data, data_sz);
+          break;
         }
       });
       t.detach();
 
+
       Net client("127.0.0.1", 9100, Mode::CONNECT);
       assert(client.active == true);
-
       char rdata[30] = {0};
       size_t r_sz = sizeof(rdata);
-      client.Recv(rdata, r_sz);
-      assert(r_sz == sizeof(rdata));
-      assert(strncmp(rdata, "hello world!", r_sz) == 0);
-      server_run = false;
-      t.join();
+      client.Recv(rdata, r_sz, 0);
+      assert(r_sz == strlen("hello world!"));
+      assert(strncmp(rdata, "hello world!", strlen("hello world!")) == 0);
+
     }
 #endif
 
