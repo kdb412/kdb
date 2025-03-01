@@ -33,3 +33,6 @@
 
 # artifact folder
 /cmake-build-debug/
+
+# IDE
+.idea/editor.xml

@@ -91,7 +91,7 @@ namespace kdb {
     bool active;
 
   public:
-    Net(size_t sockfd, Mode mode = Mode::CONNECT) : sockfd(sockfd), port(0), mode(mode), sockaddr({0}), active(true) {}
+    Net(int sockfd, Mode mode = Mode::CONNECT) : sockfd(sockfd), port(0), mode(mode), sockaddr({0}), active(true) {}
     Net(string h, int port, Mode mode = Mode::LISTEN) :
       sockfd(socket(AF_INET, SOCK_STREAM, 0)), port(port), mode(mode), sockaddr({0}), active(false) {
       switch (mode) {
@@ -101,7 +101,9 @@ namespace kdb {
             sockaddr.sin_port = htons(port);
             sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
             int len = sizeof(sockaddr);
+#ifndef WIN32
             setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&sockaddr, len);
+#endif
             if ( 0 == bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) )
               if ( 0 == listen(sockfd, 100) ) {
                 active = true;
@@ -126,63 +128,84 @@ namespace kdb {
       active = false;
     }
 
-    virtual void Send(void *data, size_t &sz) {
-      auto w_sz = write(sockfd, data, sz);
-      sz = w_sz;
+    virtual void Send(void *data, unsigned &sz) {
+      auto w_sz = ::send(sockfd, bit_cast<char*>(data), sz, 0);
+      if (w_sz > 0)
+        sz = w_sz;
+      else
+        sz = 0;
     }
 
-    virtual void Recv(void *data, size_t &sz, size_t *c) {
+    virtual void Recv(void *data, unsigned &sz, unsigned *c) {
       if ( mode == Mode::LISTEN)
       {
         if ( nullptr != c && (*c) == 0 ) {
           (*c) = accept(sockfd, nullptr, nullptr);
+#ifndef WIN32
           fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) | O_NONBLOCK);
+#else
+          u_long mode = 1;  // 1 to enable non-blocking socket
+          ioctlsocket(*c, FIONBIO, &mode);
+#endif
         }
         else if ( nullptr != c && (*c) > 0 ){
-          auto r_sz = read(*c, data, sz);
-          sz = r_sz;
+          auto r_sz = ::recv(*c, bit_cast<char*>(data), sz, 0);
+          if (r_sz > 0)
+            sz = r_sz;
+          else
+            sz = 0;
         }
       }
       else {
-        auto r_sz = read(sockfd, data, sz);
-        sz = r_sz;
+        auto r_sz = recv(sockfd, bit_cast<char*>(data), sz, 0);
+        if (r_sz > 0)
+          sz = r_sz;
+        else
+          sz = 0;
       }
     }
 
 #ifndef NDEBUG
     static void Test() {
       using namespace std::chrono_literals;
+      atomic<bool> server_run = true;
 
-      atomic<bool> server_run(true);
-
-      thread server([&server_run] {
+      thread server([&server_run]
+      {
         char data[30] = "hello world!";
-        size_t data_sz = strlen(data);
-        size_t data_sent = 0;
+        unsigned data_sz = strlen(data);
+        unsigned data_sent = 0;
         Net host("0.0.0.0", 9100, Mode::LISTEN);
 
-        while (server_run) {
-          size_t client_sock = 0;
+        unsigned client_sock = 0;
+        host.Recv(data, data_sz, &client_sock);
+        while (client_sock == 0)
           host.Recv(data, data_sz, &client_sock);
-          if (client_sock <= 0)
-            continue;
-          Net clnt(client_sock);
+        Net clnt(client_sock);
+
+        while (server_run) {
           while ( data_sent != strlen(data)) {
             clnt.Send(&data[data_sent], data_sz);
             if (data_sz >0) {
               data_sent += data_sz;
               data_sz = strlen(data) - data_sent;
             }
+            else
+              data_sz = strlen(data) - data_sent;
           }
           break;
         }
+
+        while (server_run)
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
       });
 
       thread client( [&server_run] {
         Net client("127.0.0.1", 9100, Mode::CONNECT);
         char rdata[30] = {0};
-        size_t bytes_r = 0;
-        size_t r_sz = sizeof(rdata);
+        unsigned bytes_r = 0;
+        unsigned r_sz = sizeof(rdata);
         assert(client.active == true);
 
         while (server_run && bytes_r < strlen("hello world!")) {
@@ -199,7 +222,7 @@ namespace kdb {
 
       server.join();
       client.join();
-    }
+    };
 #endif
 
   };
@@ -220,7 +243,7 @@ namespace kdb {
     };
 
     virtual ~Storage() {}
-    virtual void GenerateTx(void *data, size_t &sz, kdb_tx &tx, STMODE s_mode = STMODE::READ){}
+    virtual void GenerateTx(void *data, unsigned &sz, kdb_tx &tx, STMODE s_mode = STMODE::READ){}
     virtual void ExecuteTx(kdb_tx &tx){}
   };
 
