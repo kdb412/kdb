@@ -10,6 +10,7 @@ auto main (int argc, char *argv[]) -> int {
 #ifndef NDEBUG
   std::cout << "running tests.. ";
 
+  kdb::Crypto::Test();
   kdb::Net::Test();
   kdb::kdbms::Test();
 

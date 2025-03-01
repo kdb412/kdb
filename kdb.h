@@ -37,12 +37,45 @@ namespace kdb {
   using std::to_string;
   using std::chrono::system_clock;
 
-  // crypto provider
+  // crypto provider - SAMPLE ONLY
   class Crypto {
-    public:
+  private:
+    const string pass;
+
+  public:
+    Crypto(string pass) : pass(pass) {}
     virtual ~Crypto() {}
-    virtual void Enc(void *data, size_t &sz) {}
-    virtual void Dec(void *data, size_t &sz) {}
+    virtual void Enc(void *data, size_t &sz) {
+      auto p = bit_cast<char*>(data);
+      size_t enc_bCnt = 0;
+      while(enc_bCnt < sz) {
+        p[enc_bCnt] ^= 21;
+        enc_bCnt++;
+      }
+    }
+    virtual void Dec(void *data, size_t &sz) {
+      auto p = bit_cast<char*>(data);
+      size_t enc_bCnt = 0;
+      while(enc_bCnt < sz) {
+        p[enc_bCnt] ^= 21;
+        enc_bCnt++;
+      }
+    }
+
+#ifndef NDEBUG
+    static void Test() {
+      string data = "hello world!";
+      size_t sz = data.length();
+      Crypto crypt("password");
+
+      crypt.Enc(data.data(), sz);
+      assert(data.compare("hello world!") != 0);
+      sz = data.length();
+      crypt.Dec(data.data(), sz);
+      assert(data.compare("hello world!") == 0);
+
+    }
+#endif
   };
 
   class Net {
@@ -158,9 +191,7 @@ namespace kdb {
             bytes_r += r_sz;
             r_sz = strlen(rdata) - bytes_r;
           }
-
         }
-
         server_run = false;
         assert(bytes_r == strlen("hello world!"));
         assert(strncmp(rdata, "hello world!", strlen("hello world!")) == 0);
