@@ -68,6 +68,7 @@ namespace kdb {
             sockaddr.sin_port = htons(port);
             sockaddr.sin_addr.s_addr = inet_addr(h.c_str());
             int len = sizeof(sockaddr);
+            setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&sockaddr, len);
             if ( 0 == bind(sockfd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) )
               if ( 0 == listen(sockfd, 100) ) {
                 active = true;
@@ -119,35 +120,54 @@ namespace kdb {
     static void Test() {
       using namespace std::chrono_literals;
 
-      thread t([] {
+      atomic<bool> server_run(true);
 
+      thread server([&server_run] {
         char data[30] = "hello world!";
         size_t data_sz = strlen(data);
-
+        size_t data_sent = 0;
         Net host("0.0.0.0", 9100, Mode::LISTEN);
 
-        while (true) {
-          std::this_thread::sleep_for(2s);
+        while (server_run) {
           size_t client_sock = 0;
           host.Recv(data, data_sz, &client_sock);
           if (client_sock <= 0)
             continue;
           Net clnt(client_sock);
-          clnt.Send(data, data_sz);
+          while ( data_sent != strlen(data)) {
+            clnt.Send(&data[data_sent], data_sz);
+            if (data_sz >0) {
+              data_sent += data_sz;
+              data_sz = strlen(data) - data_sent;
+            }
+          }
           break;
         }
       });
-      t.detach();
 
+      thread client( [&server_run] {
+        Net client("127.0.0.1", 9100, Mode::CONNECT);
+        char rdata[30] = {0};
+        size_t bytes_r = 0;
+        size_t r_sz = sizeof(rdata);
+        assert(client.active == true);
 
-      Net client("127.0.0.1", 9100, Mode::CONNECT);
-      assert(client.active == true);
-      char rdata[30] = {0};
-      size_t r_sz = sizeof(rdata);
-      client.Recv(rdata, r_sz, 0);
-      assert(r_sz == strlen("hello world!"));
-      assert(strncmp(rdata, "hello world!", strlen("hello world!")) == 0);
+        while (server_run && bytes_r < strlen("hello world!")) {
+          client.Recv(&rdata[bytes_r], r_sz, 0);
+          if (r_sz > 0) {
+            bytes_r += r_sz;
+            r_sz = strlen(rdata) - bytes_r;
+          }
 
+        }
+
+        server_run = false;
+        assert(bytes_r == strlen("hello world!"));
+        assert(strncmp(rdata, "hello world!", strlen("hello world!")) == 0);
+      });
+
+      server.join();
+      client.join();
     }
 #endif
 
