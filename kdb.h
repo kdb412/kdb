@@ -244,18 +244,7 @@ namespace kdb {
     void *data;
   };
 
-  class Storage {
-    public:
-    enum class STMODE {
-      READ = 0,
-      WRITE = 1,
-    };
-
-    virtual ~Storage() {}
-    virtual void GenerateTx(void *data, unsigned &sz, kdb_tx &tx, STMODE s_mode = STMODE::READ){}
-    virtual void ExecuteTx(kdb_tx &tx){}
-  };
-
+  class storage;
   class db {
 
     friend class kdbms;
@@ -356,6 +345,27 @@ namespace kdb {
 
   };
 
+  class Storage {
+  private:
+    db &dbinst;
+  public:
+    enum class STMODE {
+      READ = 0,
+      WRITE = 1,
+    };
+    Storage()   = delete;
+    Storage(Storage &&) = delete;
+    Storage(Storage const &) = delete;
+    Storage &operator=(Storage &&) = delete;
+    Storage &operator=(Storage const &) = delete;
+
+    Storage(db &dbinst) : dbinst(dbinst) {}
+
+    virtual ~Storage() {}
+    virtual void GenerateTx(void *data, unsigned &sz, kdb_tx &tx, STMODE s_mode = STMODE::READ){}
+    virtual void ExecuteTx(kdb_tx &tx, bool &rs){}
+  };
+
   class kdbms {
   private:
     db        db_inst;
@@ -364,6 +374,7 @@ namespace kdb {
     char      kek[512];
     Crypto   *_cipher;
     Net      *_net;
+    Storage   *_storage;
 
   public:
       kdbms()                         = delete;
@@ -372,12 +383,16 @@ namespace kdb {
       kdbms &operator=(kdbms &&)      = delete;
       kdbms &operator=(const kdbms &) = delete;
 
-      kdbms(string path) :
-      db_inst(path), online(false), port(0), kek{0}, _cipher(nullptr), _net(nullptr) {}
+      virtual ~kdbms() { if (nullptr != _storage) delete _storage; _storage = nullptr;  }
 
+      kdbms(string path) :
+      db_inst(path), online(false), port(0), kek{0}, _cipher(nullptr), _net(nullptr), _storage(nullptr) {}
+
+      template<class S>
       void setProviders(Crypto *_cipher, Net *_net) {
-        this->_cipher = _cipher;
-        this->_net = _net;
+        this->_cipher  = _cipher;
+        this->_net     = _net;
+        this->_storage = new S(db_inst);
       }
 
       bool Online(uint32_t port = 8000) {
@@ -439,9 +454,9 @@ namespace kdb {
     static void Test() {
 
         kdbms   t("file.db");
-        Crypto  c("papssword");
+        Crypto  c("password");
         Net     n("0.0.0.0", 8000);
-        t.setProviders(&c, &n);
+        t.setProviders<Storage>(&c, &n);
         assert( t.db_inst.is_open() == true );
 
         // _db_header / _db_data / _db_bdata
