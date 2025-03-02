@@ -45,7 +45,7 @@ namespace kdb {
   public:
     Crypto(string pass) : pass(pass) {}
     virtual ~Crypto() {}
-    virtual void Enc(void *data, size_t &sz) {
+    virtual void Enc(void *data, const size_t sz) {
       auto p = bit_cast<char*>(data);
       size_t enc_bCnt = 0;
       while(enc_bCnt < sz) {
@@ -53,12 +53,21 @@ namespace kdb {
         enc_bCnt++;
       }
     }
-    virtual void Dec(void *data, size_t &sz) {
+    virtual void Dec(void *data, const size_t sz) {
       auto p = bit_cast<char*>(data);
       size_t enc_bCnt = 0;
       while(enc_bCnt < sz) {
         p[enc_bCnt] ^= 21;
         enc_bCnt++;
+      }
+    }
+    virtual void GenRandBits(void *data, const size_t sz) {
+      auto p = bit_cast<char*>(data);
+      size_t bytesGen = 0;
+
+      while (bytesGen < sz) {
+        p[bytesGen] ^= (rand() % 0x100);
+        bytesGen++;
       }
     }
 
@@ -352,8 +361,9 @@ namespace kdb {
     db        db_inst;
     bool      online;
     uint32_t  port;
-    string    pass;
     char      kek[512];
+    Crypto   *_cipher;
+    Net      *_net;
 
   public:
       kdbms()                         = delete;
@@ -363,15 +373,19 @@ namespace kdb {
       kdbms &operator=(const kdbms &) = delete;
 
       kdbms(string path) :
-      db_inst(path), online(false), port(0), pass(""), kek{0} {}
+      db_inst(path), online(false), port(0), kek{0}, _cipher(nullptr), _net(nullptr) {}
 
-      bool Online(uint32_t port = 8000, string pass = "") {
+      void setProviders(Crypto *_cipher, Net *_net) {
+        this->_cipher = _cipher;
+        this->_net = _net;
+      }
+
+      bool Online(uint32_t port = 8000) {
         char buff[db::BLOCK_SIZE] = {0};
         auto _h = bit_cast<db::_db_header*>(&buff[0]);
         this->port = port;
-        this->pass = pass;
 
-        if (!online) {
+        if (!online && nullptr != _cipher) {
 
           if (db_inst.is_open()) {
             auto offset = 0ULL;
@@ -390,7 +404,8 @@ namespace kdb {
                 else
                   strcpy(_h->oname, db_inst.db_path.c_str());
 
-                // todo: generate kek / with security provider
+                _cipher->GenRandBits(_h->kek, sizeof(_h->kek));
+                _cipher->Enc(_h->kek, sizeof(_h->kek));
 
                 memcpy(_h->kek, kek, sizeof(db::kdb_h.kek));
                 online = db_inst.write(buff, offset);
@@ -404,6 +419,7 @@ namespace kdb {
                 if ( _h->version[1] != (db::DBVE ^ 0x007f) )
                   return false;
 
+                _cipher->Dec(_h->kek, sizeof(_h->kek));
                 // todo: kek validation with security provider
 
                 online = true;
@@ -422,7 +438,10 @@ namespace kdb {
 #ifndef NDEBUG
     static void Test() {
 
-        kdbms t("file.db");
+        kdbms   t("file.db");
+        Crypto  c("papssword");
+        Net     n("0.0.0.0", 8000);
+        t.setProviders(&c, &n);
         assert( t.db_inst.is_open() == true );
 
         // _db_header / _db_data / _db_bdata
