@@ -154,7 +154,7 @@ namespace kdb {
           fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) | O_NONBLOCK);
 #else
           u_long mode = 1;  // 1 to enable non-blocking socket
-          ioctlsocket(*c, FIONBIO, &mode);
+          ioctlsocket(sockfd, FIONBIO, &mode);
 #endif
         }
         else if ( nullptr != c && (*c) > 0 ){
