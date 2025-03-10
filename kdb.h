@@ -362,19 +362,19 @@ namespace kdb {
     Storage(db &dbinst) : dbinst(dbinst) {}
 
     virtual ~Storage() {}
-    virtual void GenerateTx(void *data, unsigned &sz, kdb_tx &tx, STMODE s_mode = STMODE::READ){}
-    virtual void ExecuteTx(kdb_tx &tx, bool &rs){}
+    virtual void HandleReq(int c_sock){}
   };
 
   class kdbms {
   private:
-    db        db_inst;
-    bool      online;
-    uint32_t  port;
-    char      kek[512];
-    Crypto   *_cipher;
-    Net      *_net;
-    Storage   *_storage;
+    static atomic<bool>  _active;
+    db            db_inst;
+    bool          online;
+    uint32_t      port;
+    char          kek[512];
+    Crypto        *_cipher;
+    Net           *_net;
+    Storage       *_storage;
 
   public:
       kdbms()                         = delete;
@@ -446,8 +446,18 @@ namespace kdb {
         return online;
       }
 
-      static void StartService(kdbms &db) {
+      template<class D>
+      static void StartService(D &kdb, uint32_t port = 8000) {
+        unsigned client = 0;
+        char buff[200] = {0};
+        unsigned sz = sizeof(buff);
 
+        while (kdb._active) {
+          client = 0;
+          kdb._net->Recv(buff, sz, client);
+          if (client > 0)
+            kdb.handleReq(client);
+        }
       }
 
 #ifndef NDEBUG
