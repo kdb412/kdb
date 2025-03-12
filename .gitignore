@@ -36,3 +36,10 @@
 
 # IDE
 .idea/editor.xml
+
+# build/test
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+file.db
