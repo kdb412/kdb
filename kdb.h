@@ -457,7 +457,7 @@ namespace kdb {
           client = 0;
           kdb._net->Recv(buff, sz, client);
           if (client > 0)
-            kdb.handleReq(client);
+            kdb._storage->HandleReq(client);
         }
       }
 
