@@ -396,10 +396,9 @@ namespace kdb {
         this->_storage = new S(db_inst);
       }
 
-      bool Online(uint32_t port = 8000) {
+      bool Online() {
         char buff[db::BLOCK_SIZE] = {0};
         auto _h = bit_cast<db::_db_header*>(&buff[0]);
-        this->port = port;
 
         if (!online && nullptr != _cipher) {
 
