@@ -364,6 +364,10 @@ namespace kdb {
 
     virtual ~Storage() {}
     virtual void HandleReq(int c_sock){}
+
+  protected:
+    virtual searchData(void *sdd) {};
+    virtual writeData(void *wdd) {};
   };
 
   class kdbms {
