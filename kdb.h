@@ -366,8 +366,8 @@ namespace kdb {
     virtual void HandleReq(int c_sock){}
 
   protected:
-    virtual searchData(void *sdd) {};
-    virtual writeData(void *wdd) {};
+    virtual void searchData(void *sdd) {};
+    virtual void writeData(void *wdd) {};
   };
 
   class kdbms {
