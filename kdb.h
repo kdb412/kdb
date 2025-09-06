@@ -250,7 +250,32 @@ namespace kdb {
 
     friend class kdbms;
     friend class storage;
-  
+  protected:
+    bool write( void *data, unsigned long long &offset ) {
+      try {
+        odbf.seekp( offset );
+        auto block = bit_cast<char *>( data );
+        odbf.write( block, BLOCK_SIZE );
+        return true;
+      }
+      catch ( ... ) {
+        return false;
+      }
+    }
+
+    bool read( void *data, unsigned long long &offset, uint32_t &bytes_r ) {
+      try {
+        idbf.seekg( offset );
+        auto block = bit_cast<char *>( data );
+        idbf.read( block, BLOCK_SIZE );
+        bytes_r = idbf.gcount();
+        return true;
+      }
+      catch ( ... ) {
+        return false;
+      }
+    }
+
   private:
     static constexpr int MAX_BLOCK_ALLOC = 0x64;
     static constexpr int BLOCK_SIZE = 0x1000;
@@ -306,31 +331,7 @@ namespace kdb {
       return false;
     }
 
-    bool write( void *data, unsigned long long &offset ) {
-      try {
-        odbf.seekp( offset );
-        auto block = bit_cast<char *>( data );
-        odbf.write( block, BLOCK_SIZE );
-        return true;
-      }
-      catch ( ... ) {
-        return false;
-      }
-    }
-
-    bool read( void *data, unsigned long long &offset, uint32_t &bytes_r ) {
-      try {
-        idbf.seekg( offset );
-        auto block = bit_cast<char *>( data );
-        idbf.read( block, BLOCK_SIZE );
-        bytes_r = idbf.gcount();
-        return true;
-      }
-      catch ( ... ) {
-        return false;
-      }
-    }
-
+   
   public:
     db()                      = delete;
     db(db &&)                 = delete;
